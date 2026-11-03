@@ -1,0 +1,3 @@
+export type Format = { type: 'EPUB'|'HTML'|'TXT'|'PDF'; url: string };
+export type Book = { id:string; source:string; sourceUrl:string; title:string; authors:string; description?:string; coverUrl?:string; language:string; year?:number; license:string; rightsBasis:string; countryRestrictions:string; attribution:string; formats:Format[]; categories?:string[] };
+export interface Adapter { id:string; search(q:string, language?:string, page?:number):Promise<{books:Book[]; total?:number; next?:string|null}>; getDetails(id:string):Promise<Book|null>; getReadableFormats(book:Book):Format[]; health():Promise<boolean> }

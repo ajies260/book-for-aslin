@@ -1,0 +1,125 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String            @id @default(cuid())
+  email        String            @unique @db.VarChar(191)
+  passwordHash String            @db.VarChar(255)
+  role         String            @default("MEMBER") @db.VarChar(20)
+  accountSlot  Int               @unique @db.UnsignedTinyInt
+  active       Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  favorites    Favorite[]
+  saved        SavedBook[]
+  progress     ReadingProgress[]
+  bookmarks    Bookmark[]
+  settings     UserSettings?
+}
+
+model Source {
+  id            String  @id @db.VarChar(60)
+  name          String  @db.VarChar(120)
+  baseUrl       String  @db.VarChar(500)
+  licensePolicy String  @db.Text
+  enabled       Boolean @default(true)
+}
+
+model Book {
+  id                  String            @id @db.VarChar(191)
+  source              String            @db.VarChar(60)
+  sourceUrl           String            @db.VarChar(1000)
+  title               String            @db.VarChar(1000)
+  authors             String            @db.Text
+  description         String?           @db.Text
+  coverUrl            String?           @db.VarChar(1000)
+  language            String            @db.VarChar(50)
+  year                Int?
+  license             String            @db.VarChar(255)
+  rightsBasis         String            @db.Text
+  countryRestrictions String            @db.Text
+  attribution         String            @db.Text
+  formats             String            @db.Text
+  categories          String            @default("[]") @db.Text
+  createdAt           DateTime          @default(now())
+  favorites           Favorite[]
+  saved               SavedBook[]
+  progress            ReadingProgress[]
+  bookmarks           Bookmark[]
+
+  @@index([title(length: 191)])
+}
+
+model Favorite {
+  userId    String
+  bookId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookId])
+}
+
+model SavedBook {
+  userId    String
+  bookId    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookId])
+}
+
+model ReadingProgress {
+  userId    String
+  bookId    String
+  locator   String   @db.Text
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@id([userId, bookId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  locator   String   @db.Text
+  label     String?  @db.VarChar(255)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId, bookId])
+}
+
+model UserSettings {
+  userId              String @id
+  theme               String @default("light") @db.VarChar(20)
+  fontSize            Int    @default(18)
+  readingLanguage     String @default("en") @db.VarChar(20)
+  translationLanguage String @default("ta") @db.VarChar(20)
+  user                User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApiCache {
+  key       String   @id @db.VarChar(512)
+  value     String   @db.LongText
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model Session {
+  sid       String   @id @db.VarChar(191)
+  data      String   @db.LongText
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}

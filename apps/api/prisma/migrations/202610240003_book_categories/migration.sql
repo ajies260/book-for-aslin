@@ -1,0 +1,1 @@
+ALTER TABLE `Book` ADD COLUMN `categories` TEXT NOT NULL DEFAULT '[]';

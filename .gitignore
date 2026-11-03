@@ -1,0 +1,9 @@
+node_modules
+.venv/
+__pycache__/
+dist
+.env
+*.log
+apps/api/prisma/*.db
+apps/api/data/books/
+apps/api/data/translation-model/
