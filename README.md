@@ -77,6 +77,12 @@ Capacitor config uses `VITE_API_URL` at web build time. Set it to the public HTT
 
 ## Hosting
 
+### Vercel web + Render API
+
+This repository is configured to deploy the Vite frontend as a static Vercel project and the Express API as a Render web service. In Vercel, import the repository with the **repository root** as the Root Directory; `vercel.json` builds `apps/web` and publishes `apps/web/dist`. In Render, create a Blueprint from `render.yaml`. Create a managed MySQL database separately and enter its connection string as `DATABASE_URL` in the Render API service. Use a strong `ADMIN_PASSWORD` and set `CORS_ORIGIN` to the final Vercel site origin (for example `https://your-site.vercel.app`, without a trailing slash).
+
+After Render creates the API, set `VITE_API_URL` in Vercel to `https://<your-api-host>/api`, then redeploy the Vercel site so the address is embedded in the frontend build. Run the API's Prisma migrations before using the app (`cd apps/api && npm run db:migrate` in a one-off shell with the production `DATABASE_URL`). Set `WEB_ORIGIN` to the Vercel origin if using workflows that read it. Production translation needs a hosted LibreTranslate-compatible service; the local 2.3 GB model is not installed in Render. The macOS native voice endpoint is unavailable on Linux hosting.
+
 Deploy `apps/api` with Node 20 and `npm run build` / `npm start`, and provide a reachable managed MySQL database named `ajiesbooks`. Set all DB, session, cookie, CORS and seed environment variables in the host. Run Prisma migrations as a release step (`npm run db:migrate`). Use HTTPS, a durable session store, backups, restricted network access and secrets manager. Deploy the static `apps/web/dist` directory to a static host, set its `VITE_API_URL` to the API URL, build with that value, and allow the web origin in `CORS_ORIGIN`. Never configure phone builds to use localhost.
 
 Share APK through a private Google Drive link, GitHub Release, or Firebase App Distribution. Ensure that only the intended five members receive credentials and the APK link. Installing an APK from outside Play Store may require allowing installs from that source.
