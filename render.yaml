@@ -3,6 +3,7 @@ services:
     name: for-you-books-api
     runtime: node
     plan: free
+    region: singapore
     buildCommand: npm ci && npm --workspace apps/api run build
     startCommand: npm --workspace apps/api run db:migrate && npm --workspace apps/api run db:seed && npm --workspace apps/api start
     healthCheckPath: /api/health
