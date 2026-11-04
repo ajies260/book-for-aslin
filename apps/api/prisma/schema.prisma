@@ -45,7 +45,7 @@ model Book {
   countryRestrictions String            @db.Text
   attribution         String            @db.Text
   formats             String            @db.Text
-  categories          String            @default("[]") @db.Text
+  categories          String            @db.Text
   createdAt           DateTime          @default(now())
   favorites           Favorite[]
   saved               SavedBook[]

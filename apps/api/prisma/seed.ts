@@ -1,6 +1,8 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import {PrismaClient} from '@prisma/client';
 import argon2 from 'argon2';
+import {resolve} from 'node:path';
+dotenv.config({path:resolve(process.cwd(),'../../.env')});
 const prisma=new PrismaClient();
 async function main(){
  const accounts=[{email:process.env.ADMIN_EMAIL,password:process.env.ADMIN_PASSWORD,role:'ADMIN'},...[1,2,3,4,5,6].map(i=>({email:process.env[`MEMBER${i}_EMAIL`],password:process.env[`MEMBER${i}_PASSWORD`],role:'MEMBER'}))].filter(x=>x.email&&x.password) as {email:string;password:string;role:string}[];
