@@ -29,7 +29,7 @@ Fill in `.env`:
 
 - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME=ajiesbooks`; use the same values in `DATABASE_URL` (`mysql://USER:PASSWORD@HOST:PORT/ajiesbooks`). URL-encode special characters in the URL password.
 - `SESSION_SECRET`: generate with `openssl rand -base64 48`.
-- `ADMIN_EMAIL` and `ADMIN_PASSWORD`; set any `MEMBER1..4_EMAIL` / `MEMBER1..4_PASSWORD` pairs desired (leave a pair empty to skip it). Passwords should be unique and strong.
+- `ADMIN_EMAIL` and `ADMIN_PASSWORD`; set any `MEMBER1..6_EMAIL` / `MEMBER1..6_PASSWORD` pairs desired (leave a pair empty to skip it). Passwords should be unique and strong.
 - Translation works locally without an API URL or key after running `npm run setup:translation`. The first translation downloads the 2.3 GB NLLB model into `apps/api/data/translation-model`; later requests run on this computer and use its Apple GPU when available, otherwise CPU. `LIBRETRANSLATE_URL` and optional `LIBRETRANSLATE_API_KEY` can override the local model with a hosted LibreTranslate service. The bundled NLLB model is licensed CC-BY-NC-4.0 and is intended for research and non-commercial use; use a different model/provider for commercial deployments.
 - `GOOGLE_BOOKS_API_KEY` is reserved for a future adapter and currently unused.
 - `CORS_ORIGIN`, `COOKIE_SECURE`, `WEB_ORIGIN`, `VITE_API_URL`, and `PORT` for hosting. The Vite config reads this repo-root `.env`; set `VITE_API_URL` to the reachable API base plus `/api`.
@@ -51,11 +51,11 @@ npm run db:seed
 npm run dev
 ```
 
-Web: `http://localhost:5173`; API: `http://localhost:4000/api/health`. Admin/member seed accounts are taken only from `.env`. There is one admin plus up to four members (five accounts total); the admin can add, disable, enable, and reset member passwords in Profile. Public self-registration is absent.
+Web: `http://localhost:5173`; API: `http://localhost:4000/api/health`. Admin/member seed accounts are taken only from `.env`. There is one admin plus up to six members (seven accounts total); the admin can add, disable, enable, and reset member passwords in Profile. Public self-registration is absent.
 
 ## MySQL and data
 
-Prisma schema is `apps/api/prisma/schema.prisma`. Migrations are under `apps/api/prisma/migrations`. The database enforces five unique account slots with a MySQL `CHECK (accountSlot BETWEEN 1 AND 5)` plus a unique index; application code also assigns only an unused slot. That makes a sixth row impossible even if a client bypasses the API. Book metadata is upserted when opened from search, and per-user favorites, shelf, progress, bookmarks and settings are held in MySQL.
+Prisma schema is `apps/api/prisma/schema.prisma`. Migrations are under `apps/api/prisma/migrations`. The database enforces seven unique account slots with a MySQL `CHECK (accountSlot BETWEEN 1 AND 7)` plus a unique index; application code also assigns only an unused slot. That makes an eighth row impossible even if a client bypasses the API. Book metadata is upserted when opened from search, and per-user favorites, shelf, progress, bookmarks and settings are held in MySQL.
 
 ## Android APK
 
