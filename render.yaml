@@ -5,7 +5,7 @@ services:
     plan: free
     region: singapore
     buildCommand: npm ci && npm --workspace apps/api run build
-    startCommand: npm --workspace apps/api run db:migrate && npm --workspace apps/api run db:seed && npm --workspace apps/api start
+    startCommand: npm --workspace apps/api run db:migrate && npm --workspace apps/api run db:seed && npm --workspace apps/api run start
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
@@ -21,4 +21,28 @@ services:
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD
+        sync: false
+      - key: MEMBER1_EMAIL
+        sync: false
+      - key: MEMBER1_PASSWORD
+        sync: false
+      - key: MEMBER2_EMAIL
+        sync: false
+      - key: MEMBER2_PASSWORD
+        sync: false
+      - key: MEMBER3_EMAIL
+        sync: false
+      - key: MEMBER3_PASSWORD
+        sync: false
+      - key: MEMBER4_EMAIL
+        sync: false
+      - key: MEMBER4_PASSWORD
+        sync: false
+      - key: MEMBER5_EMAIL
+        sync: false
+      - key: MEMBER5_PASSWORD
+        sync: false
+      - key: MEMBER6_EMAIL
+        sync: false
+      - key: MEMBER6_PASSWORD
         sync: false
