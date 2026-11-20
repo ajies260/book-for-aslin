@@ -5,7 +5,7 @@ import express,{Request,Response,NextFunction} from 'express';
 import {spawn,ChildProcessWithoutNullStreams} from 'node:child_process';import {createHash} from 'node:crypto';import {existsSync} from 'node:fs';import {createInterface} from 'node:readline';
 import {SessionData} from 'express-session';
 import {mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join,resolve} from 'node:path';import {Readable,Transform} from 'node:stream';import {pipeline} from 'node:stream/promises';
-import cors from 'cors';import helmet from 'helmet';import session from 'express-session';import rateLimit from 'express-rate-limit';import argon2 from 'argon2';import {z} from 'zod';import {PrismaClient} from '@prisma/client';import {gutenberg} from './adapters/gutendex';import {getWikisourceText,wikisource} from './adapters/wikisource';import {Book,Format} from './adapters/types';import {openLibrary} from './adapters/openlibrary';import {projectMadurai,getProjectMaduraiText} from './adapters/projectmadurai';import {openTextbooks} from './adapters/opentextbooks';import {BookFetchError,fetchBookBuffer,fetchBookText} from './book-fetch';
+import cors from 'cors';import helmet from 'helmet';import session from 'express-session';import rateLimit from 'express-rate-limit';import argon2 from 'argon2';import {z} from 'zod';import {PrismaClient} from '@prisma/client';import {fetchGutenbergEpub,gutenberg} from './adapters/gutendex';import {getWikisourceText,wikisource} from './adapters/wikisource';import {Book,Format} from './adapters/types';import {openLibrary} from './adapters/openlibrary';import {projectMadurai,getProjectMaduraiText} from './adapters/projectmadurai';import {openTextbooks} from './adapters/opentextbooks';import {BookFetchError,fetchBookBuffer,fetchBookText} from './book-fetch';
 dotenv.config({path:resolve(process.cwd(),'../../.env')});
 const app=express(), prisma=new PrismaClient(), PORT=Number(process.env.PORT||4000); const adapters=[gutenberg,wikisource,openLibrary,projectMadurai];
 if(!process.env.SESSION_SECRET)throw new Error('SESSION_SECRET must be set in .env.');
@@ -216,7 +216,7 @@ app.get('/api/books/:id/epub',auth,async(req,res)=>{
    let format=formats.find(item=>item.type==='EPUB');
    if(!format){const book=await gutenberg.getDetails(id);format=book?.formats.find(item=>item.type==='EPUB');}
    if(!format)return fail(res,404,'An EPUB edition is not available for this book.');
-   const response=await fetchBookBuffer(format.url,{label:`epub:${id}`,accept:'application/epub+zip,application/zip,*/*;q=0.8',maxBytes:80*1024*1024,expected:/epub|zip|octet-stream/i});
+        const response=await fetchGutenbergEpub(id,format.url,{label:`epub:${id}`,accept:'application/epub+zip,application/zip,*/*;q=0.8',maxBytes:80*1024*1024,expected:/epub|zip|octet-stream/i});
    const data=response.value;
    if(data.length>80*1024*1024)throw new Error('Book file is too large.');
    if(data[0]!==0x50||data[1]!==0x4b)throw new Error('The downloaded response is not an EPUB ZIP file.');
