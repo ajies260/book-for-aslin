@@ -8,3 +8,6 @@ dist
 apps/api/prisma/*.db
 apps/api/data/books/
 apps/api/data/translation-model/
+apps/api/data/updates/*.apk
+.vscode/
+*.apk
