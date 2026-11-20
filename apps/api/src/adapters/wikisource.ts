@@ -1,4 +1,5 @@
 import {Adapter,Book,Format} from './types';
+import {fetchBookJson} from '../book-fetch';
 const WIKIS:Record<string,string>={en:'en.wikisource.org',ta:'ta.wikisource.org',hi:'hi.wikisource.org',bn:'bn.wikisource.org',ml:'ml.wikisource.org'};
 const api=(host:string)=>`https://${host}/w/api.php`;
 type SearchPage={query?:{search?:{title:string; pageid:number}[]}};
@@ -10,10 +11,8 @@ export async function getWikisourceText(id:string){
  if(!host)return null;
  const u=new URL(api(host));
  Object.entries({action:'parse',pageid,prop:'text',disableeditsection:'1',format:'json',formatversion:'2'}).forEach(([k,v])=>u.searchParams.set(k,v));
- const r=await fetch(u,{headers:{'User-Agent':`ForYouBooks/1.0 (contact: ${process.env.ADMIN_EMAIL||'configure ADMIN_EMAIL'})`},signal:AbortSignal.timeout(12000)});
- if(!r.ok)throw new Error(`Wikisource ${r.status}`);
- const d=await r.json() as {parse?:ParsedPage};
- const page=d.parse;
+ const result=await fetchBookJson<{parse?:ParsedPage}>(u.toString(),{label:`wikisource:${id}`,accept:'application/json,text/plain;q=0.9,*/*;q=0.8',headers:{'Api-User-Agent':`ForYouBooks/1.0 (contact: ${process.env.ADMIN_EMAIL||'configure ADMIN_EMAIL'})`}});
+ const page=result.value.parse;
  if(!page?.text?.trim())return null;
  return {title:page.title,html:page.text,sourceUrl:`https://${host}/wiki/${encodeURIComponent(page.title.replace(/ /g,'_'))}`};
 }
