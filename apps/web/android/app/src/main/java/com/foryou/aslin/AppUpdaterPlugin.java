@@ -38,6 +38,21 @@ public class AppUpdaterPlugin extends Plugin {
     }
 
     @PluginMethod
+    public void getInstallInfo(PluginCall call) {
+        try {
+            PackageInfo info = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0);
+            long code = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? info.getLongVersionCode() : info.versionCode;
+            JSObject result = new JSObject();
+            result.put("versionCode", code);
+            result.put("versionName", info.versionName == null ? "" : info.versionName);
+            if (info.lastUpdateTime > 0) result.put("lastUpdateTime", info.lastUpdateTime);
+            call.resolve(result);
+        } catch (Exception error) {
+            call.reject("Could not read the installed app information.", error);
+        }
+    }
+
+    @PluginMethod
     public void installUpdate(PluginCall call) {
         String downloadUrl = call.getString("url");
         String expectedSha256 = call.getString("sha256", "").toLowerCase(Locale.ROOT);
