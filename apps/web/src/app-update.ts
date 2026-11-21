@@ -1,8 +1,9 @@
 import {App} from '@capacitor/app';
 import {Capacitor,registerPlugin} from '@capacitor/core';
+import {LocalNotifications} from '@capacitor/local-notifications';
 
-export type PublishedAppUpdate={versionCode:number;versionName:string;sha256:string;publishedAt?:string};
-export type InstalledAppInfo={versionName:string;versionCode:number;lastUpdatedAt:string|null;source:'native'|'build'};
+export type PublishedAppUpdate={versionCode:number;versionName:string;sha256:string;publishedAt?:string;mandatory?:boolean};
+export type InstalledAppInfo={versionName:string;versionCode:number;lastUpdatedAt:string|null;source:'native'|'build';justUpdated:boolean};
 export type AppUpdateStatus={available:boolean;installedVersionCode:number;installed:InstalledAppInfo;release:PublishedAppUpdate};
 
 type NativeUpdaterPlugin={
@@ -13,6 +14,8 @@ type NativeUpdaterPlugin={
 const NativeUpdater=registerPlugin<NativeUpdaterPlugin>('AppUpdater');
 const LAST_SEEN_KEY='foryou:lastSeenVersion';
 const LAST_UPDATED_KEY='foryou:lastUpdatedAt';
+const ANNOUNCED_KEY='foryou:update-announced';
+const NOTIFIED_KEY_PREFIX='foryou:update-notified:';
 
 function readStore(key:string){try{return typeof localStorage==='undefined'?null:localStorage.getItem(key)}catch{return null}}
 function writeStore(key:string,value:string){try{if(typeof localStorage!=='undefined')localStorage.setItem(key,value)}catch{}}
@@ -27,8 +30,28 @@ export function formatAppDateTime(value:string|number|Date|null|undefined){
   return `${day}, ${time}`;
 }
 
+export function consumeUpdateAnnouncement(info:InstalledAppInfo){
+  if(!info.justUpdated)return null;
+  const key=versionKey(info);
+  if(readStore(ANNOUNCED_KEY)===key)return null;
+  writeStore(ANNOUNCED_KEY,key);
+  return info.versionName;
+}
+
+export async function notifyAppUpdate(versionName:string){
+  if(!Capacitor.isNativePlatform())return;
+  const key=`${NOTIFIED_KEY_PREFIX}${versionName}`;
+  if(readStore(key))return;
+  try{
+    const permission=await LocalNotifications.requestPermissions();
+    if(permission.display!=='granted')return;
+    await LocalNotifications.schedule({notifications:[{id:Date.now()%2000000000,title:'Update available',body:`New update available (v${versionName})`,schedule:{at:new Date(Date.now()+1000)}}]});
+    writeStore(key,versionName);
+  }catch{}
+}
+
 export async function getInstalledAppInfo():Promise<InstalledAppInfo>{
-  let info:InstalledAppInfo={versionName:__APP_VERSION_NAME__,versionCode:__APP_VERSION_CODE__,lastUpdatedAt:null,source:'build'};
+  let info:InstalledAppInfo={versionName:__APP_VERSION_NAME__,versionCode:__APP_VERSION_CODE__,lastUpdatedAt:null,source:'build',justUpdated:false};
 
   if(Capacitor.isNativePlatform()){
     const [appResult,nativeResult]=await Promise.allSettled([App.getInfo(),NativeUpdater.getInstallInfo()]);
@@ -41,7 +64,8 @@ export async function getInstalledAppInfo():Promise<InstalledAppInfo>{
         versionName:app?.version||native?.versionName||info.versionName,
         versionCode,
         lastUpdatedAt:native?.lastUpdateTime&&native.lastUpdateTime>0?new Date(native.lastUpdateTime).toISOString():null,
-        source:'native'
+        source:'native',
+        justUpdated:false
       };
     }
   }
@@ -51,7 +75,7 @@ export async function getInstalledAppInfo():Promise<InstalledAppInfo>{
     const lastUpdatedAt=info.lastUpdatedAt||new Date().toISOString();
     writeStore(LAST_SEEN_KEY,key);
     writeStore(LAST_UPDATED_KEY,lastUpdatedAt);
-    info={...info,lastUpdatedAt};
+    info={...info,lastUpdatedAt,justUpdated:!!storedVersion};
   }else if(!info.lastUpdatedAt&&storedUpdated){
     info={...info,lastUpdatedAt:storedUpdated};
   }else if(info.lastUpdatedAt){

@@ -96,3 +96,12 @@
 .dark .voice-source{background:#2f4537;color:#c8e3ce}
 .voice-progress{font-size:10px;color:var(--soft);min-width:120px}
 @media(max-width:700px){.reader-toolbar .voice-controls{width:100%}.voice-controls>*{flex:0 0 auto}.voice-progress{flex:1 1 100%;min-width:0}}
+.auth-loading{display:flex;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;gap:16px;background:var(--bg);color:var(--ink)}
+.auth-loading p{font-size:14px;color:var(--soft)}
+.modal-overlay{position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(24,19,31,.58);backdrop-filter:blur(4px)}
+.update-prompt-card{width:min(100%,440px);padding:28px;border:1px solid var(--line);border-radius:20px;background:var(--card);box-shadow:0 24px 70px rgba(39,28,54,.28)}
+.update-prompt-card h1{margin:10px 0;font-family:Georgia,serif;font-size:26px;line-height:1.15}
+.update-prompt-card p{font-size:14px;line-height:1.6;color:var(--soft)}
+.update-prompt-message{padding:10px 12px;border-radius:10px;background:var(--bg)}
+.update-prompt-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
+.update-prompt-actions .secondary{padding:10px 16px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);cursor:pointer}

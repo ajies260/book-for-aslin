@@ -75,8 +75,12 @@ if [[ "$BUMP_VERSION" == "1" ]]; then
   python3 - "$API_DIR/data/updates/latest.json" "$VERSION_CODE" "$VERSION_NAME" "$SHA256" <<'PY'
 import datetime,json,sys
 path,code,name,digest=sys.argv[1:]
+try:
+ with open(path) as f: previous=json.load(f)
+except Exception: previous={}
+record={'versionCode':int(code),'versionName':name,'sha256':digest,'publishedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'mandatory':bool(previous.get('mandatory',False))}
 with open(path,'w') as f:
- json.dump({'versionCode':int(code),'versionName':name,'sha256':digest,'publishedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()},f,indent=2)
+ json.dump(record,f,indent=2)
  f.write('\n')
 PY
   echo "its you v$VERSION_NAME is ready at $APK_OUTPUT."

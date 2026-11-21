@@ -8,12 +8,14 @@ import {mkdir,mkdtemp,readFile,rm,stat,writeFile} from 'node:fs/promises';import
 import cors from 'cors';import helmet from 'helmet';import session from 'express-session';import rateLimit from 'express-rate-limit';import argon2 from 'argon2';import {z} from 'zod';import {PrismaClient} from '@prisma/client';import {fetchGutenbergEpub,gutenberg} from './adapters/gutendex';import {getWikisourceText,wikisource} from './adapters/wikisource';import {Book,Format} from './adapters/types';import {openLibrary} from './adapters/openlibrary';import {projectMadurai,getProjectMaduraiText} from './adapters/projectmadurai';import {openTextbooks} from './adapters/opentextbooks';import {BookFetchError,fetchBookBuffer,fetchBookText} from './book-fetch';
 dotenv.config({path:resolve(process.cwd(),'../../.env')});
 const app=express(), prisma=new PrismaClient(), PORT=Number(process.env.PORT||4000); const adapters=[gutenberg,wikisource,openLibrary,projectMadurai];
+const SESSION_TTL_MS=365*24*60*60*1000;
+const DUMMY_PASSWORD_HASH='$argon2id$v=19$m=65536,t=3,p=4$AMzFMgLje/wKcjtZNYUPFg$o3t+dROstAJVWJB6HjUspvN+feQmNyWsJTwwIlUy+5c';
 if(!process.env.SESSION_SECRET)throw new Error('SESSION_SECRET must be set in .env.');
 class PrismaSessionStore extends session.Store{
  get(sid:string,callback:(err:any,session?:SessionData|null)=>void){prisma.session.findUnique({where:{sid}}).then(row=>{if(!row||row.expiresAt.getTime()<=Date.now()){if(row)void prisma.session.delete({where:{sid}}).catch(()=>{});return callback(null,null)}callback(null,JSON.parse(row.data) as SessionData)}).catch(callback)}
- set(sid:string,value:SessionData,callback?:(err?:any)=>void){const expiresAt=value.cookie?.expires?new Date(value.cookie.expires):new Date(Date.now()+365*24*60*60*1000);prisma.session.upsert({where:{sid},create:{sid,data:JSON.stringify(value),expiresAt},update:{data:JSON.stringify(value),expiresAt}}).then(()=>callback?.()).catch(err=>callback?.(err))}
+ set(sid:string,value:SessionData,callback?:(err?:any)=>void){const expiresAt=value.cookie?.expires?new Date(value.cookie.expires):new Date(Date.now()+SESSION_TTL_MS);prisma.session.upsert({where:{sid},create:{sid,data:JSON.stringify(value),expiresAt},update:{data:JSON.stringify(value),expiresAt}}).then(()=>callback?.()).catch(err=>callback?.(err))}
  destroy(sid:string,callback?:(err?:any)=>void){prisma.session.deleteMany({where:{sid}}).then(()=>callback?.()).catch(err=>callback?.(err))}
- touch(sid:string,value:SessionData,callback?:(err?:any)=>void){const expiresAt=value.cookie?.expires?new Date(value.cookie.expires):new Date(Date.now()+365*24*60*60*1000);prisma.session.updateMany({where:{sid},data:{expiresAt}}).then(()=>callback?.()).catch(err=>callback?.(err))}
+ touch(sid:string,value:SessionData,callback?:(err?:any)=>void){const expiresAt=value.cookie?.expires?new Date(value.cookie.expires):new Date(Date.now()+SESSION_TTL_MS);prisma.session.updateMany({where:{sid},data:{expiresAt}}).then(()=>callback?.()).catch(err=>callback?.(err))}
 }
 const searchCache=new Map<string,{expires:number;value:{books:Book[];total?:number;next?:string|null}}>();
 const inFlight=new Map<string,Promise<{books:Book[];total?:number;next?:string|null}>>();
@@ -116,7 +118,7 @@ app.use(cors({origin:(origin,callback)=>{
 },credentials:true}));
 app.use(express.json({limit:'1mb'}));
 const sessionStore=new PrismaSessionStore();
-app.use(session({store:sessionStore,name:'foryou.sid',secret:process.env.SESSION_SECRET,resave:false,saveUninitialized:false,rolling:true,cookie:{httpOnly:true,sameSite:process.env.COOKIE_SECURE==='true'?'none':'lax',secure:process.env.COOKIE_SECURE==='true',maxAge:1000*60*60*24*365}}));
+app.use(session({store:sessionStore,name:'foryou.sid',secret:process.env.SESSION_SECRET,resave:false,saveUninitialized:false,rolling:true,cookie:{httpOnly:true,sameSite:process.env.COOKIE_SECURE==='true'?'none':'lax',secure:process.env.COOKIE_SECURE==='true',maxAge:SESSION_TTL_MS}}));
 app.use('/api/auth/login',rateLimit({windowMs:15*60*1000,limit:10,standardHeaders:true,legacyHeaders:false}));
 declare module 'express-session'{interface SessionData{userId?:string;role?:string}}
 type AuthContext={userId:string;role:string};
@@ -124,7 +126,7 @@ type BearerRequest=Request&{bearerAuth?:AuthContext};
 function bearerToken(req:Request){const value=req.headers.authorization;const match=typeof value==='string'?/^Bearer\s+([A-Za-z0-9_-]{10,200})$/i.exec(value):null;return match?.[1]||''}
 function authContext(req:Request):AuthContext|undefined{const bearer=(req as BearerRequest).bearerAuth;if(bearer)return bearer;return req.session.userId?{userId:req.session.userId,role:req.session.role||'MEMBER'}:undefined}
 function currentUserId(req:Request){return authContext(req)!.userId}
-app.use((req,res,next)=>{const token=bearerToken(req);if(!token||authContext(req))return next();sessionStore.get(token,(error,session)=>{if(!error&&session?.userId)(req as BearerRequest).bearerAuth={userId:session.userId,role:session.role||'MEMBER'};next()})});
+app.use((req,res,next)=>{const token=bearerToken(req);if(!token||authContext(req))return next();sessionStore.get(token,(error,session)=>{if(error||!session?.userId)return next();(req as BearerRequest).bearerAuth={userId:session.userId,role:session.role||'MEMBER'};const expiresAt=new Date(Date.now()+SESSION_TTL_MS);session.cookie.expires=expiresAt;session.cookie.maxAge=SESSION_TTL_MS;sessionStore.touch(token,session,()=>{});next()})});
 const fail=(res:Response,status:number,message:string)=>res.status(status).json({error:message});
 const pathParam=(value:string|string[]|undefined):string=>Array.isArray(value)?value[0]||'':value||'';
 const BOOK_TEXT_CACHE_PREFIX='book-text:v1:';
@@ -181,8 +183,26 @@ app.get('/api/health',async(_req,res)=>{
   const translation={googleConfigured:!!process.env.GOOGLE_TRANSLATE_API_KEY,libreConfigured:!!process.env.LIBRETRANSLATE_URL,localWorkerInstalled:existsSync(resolve(process.cwd(),'.venv/bin/python'))};
   res.status(200).json({ok:database,database,sources,translation,service:'for-you-books-api'});
  });
-app.post('/api/auth/login',async(req,res)=>{const parsed=z.object({email:z.string().email(),password:z.string().min(1)}).safeParse(req.body);if(!parsed.success)return fail(res,400,'Enter a valid email and password.');const user=await prisma.user.findUnique({where:{email:parsed.data.email.toLowerCase()}});if(!user?.active||!await argon2.verify(user.passwordHash,parsed.data.password))return fail(res,401,'Email or password is incorrect.');req.session.userId=user.id;req.session.role=user.role;res.json({id:user.id,email:user.email,role:user.role,token:req.session.id})});
-app.post('/api/auth/logout',auth,(req,res)=>{const token=bearerToken(req);if(token)return sessionStore.destroy(token,()=>res.json({ok:true}));req.session.destroy(()=>res.json({ok:true}))});app.get('/api/auth/me',(req,res)=>{const context=authContext(req);if(!context)return res.json(null);prisma.user.findUnique({where:{id:context.userId},select:{id:true,email:true,role:true}}).then(u=>res.json(u))});
+app.post('/api/auth/login',async(req,res)=>{
+ const parsed=z.object({email:z.string().email(),password:z.string().min(1)}).safeParse(req.body);
+ if(!parsed.success)return fail(res,400,'Enter a valid email and password.');
+ try{
+  const user=await prisma.user.findUnique({where:{email:parsed.data.email.toLowerCase()}});
+  const passwordOk=await argon2.verify(user?.passwordHash||DUMMY_PASSWORD_HASH,parsed.data.password);
+  if(!user?.active||!passwordOk)return fail(res,401,'Email or password is incorrect');
+  req.session.userId=user.id;req.session.role=user.role;
+  res.json({id:user.id,email:user.email,role:user.role,token:req.session.id});
+ }catch{return fail(res,401,'Email or password is incorrect')}
+});
+app.post('/api/auth/logout',auth,(req,res)=>{
+ const token=bearerToken(req),cookieSid=req.session.id,finish=()=>res.json({ok:true});
+ if(token)return sessionStore.destroy(token,()=>{if(cookieSid&&cookieSid!==token)return req.session.destroy(()=>finish());finish()});
+ req.session.destroy(()=>finish());
+});
+app.get('/api/auth/me',auth,async(req,res)=>{
+ try{const user=await prisma.user.findUnique({where:{id:currentUserId(req)},select:{id:true,email:true,role:true}});return user?res.json(user):fail(res,401,'Please sign in to continue.')}
+ catch{return fail(res,500,'Could not load your profile.')}
+});
 app.get('/api/books/search',auth,async(req,res)=>{const q=z.string().trim().min(1).max(200).safeParse(req.query.q);if(!q.success)return fail(res,400,'Enter a title, author, subject, or keyword.');const language=typeof req.query.language==='string'?req.query.language:undefined;const page=Math.max(1,Number(req.query.page||1));const searchAdapters=adapters.filter(a=>a.id!=='projectmadurai'||language==='ta'||/[\u0B80-\u0BFF]/u.test(q.data));const settled=await Promise.allSettled(searchAdapters.map(a=>cachedSearch(a,q.data,language,page)));const books=settled.flatMap(x=>x.status==='fulfilled'?x.value.books:[]);const result=mergeCatalogBooks(books);const openLibraryIndex=searchAdapters.findIndex(a=>a.id==='openlibrary');const openLibraryResult=settled[openLibraryIndex];const catalogTotal=openLibraryResult?.status==='fulfilled'?openLibraryResult.value.total:undefined;res.json({results:result,total:result.length,catalogTotal,page,hasMore:settled.some(x=>x.status==='fulfilled'&&!!x.value.next),partial: settled.some(x=>x.status==='rejected'),unavailableSources:settled.flatMap((x,i)=>x.status==='rejected'?[searchAdapters[i].id]:[])})});
 app.get('/api/books/discover',auth,async(req,res)=>{if(req.query.learner==='1')return res.json({results:languageLearningBooks,total:languageLearningBooks.length,catalogTotal:languageLearningBooks.length,page:1,hasMore:false,partial:false});const language=typeof req.query.language==='string'?req.query.language:'all';const page=Math.max(1,Number(req.query.page||1));const topic=typeof req.query.topic==='string'?req.query.topic:'';const sort=req.query.sort==='old'?'old':'new';const allowed=['world','education','history','geography','astronomy','nature','culture','travel','science','philosophy','general-knowledge','comics-cartoon','comedy-humor','mystery','romance','fiction','story-books','biography','poetry','religion','children','brain-mind','bible','tamil-nadu'];if(topic&&!allowed.includes(topic))return fail(res,400,'Choose a listed subject.');try{const selectedLanguage=language==='ta'||topic==='tamil-nadu'?'ta':language;const requests:Promise<{books:Book[];total?:number;next?:string|null}>[]=[gutenberg.discover(selectedLanguage,page,topic),openLibrary.discover(selectedLanguage,page,topic,sort)];if(topic==='education')requests.push(openTextbooks.discover(page));if(selectedLanguage==='ta')requests.push(projectMadurai.search('', 'ta', page));const settled=await Promise.allSettled(requests);const books=mergeCatalogBooks(settled.flatMap(x=>x.status==='fulfilled'?x.value.books:[]));books.sort((a,b)=>{if(a.year===undefined)return 1;if(b.year===undefined)return -1;return sort==='old'?a.year-b.year:b.year-a.year});if(language==='all'&&!topic&&page===1)books.unshift(polyglotGuide);res.json({results:books,total:books.length,catalogTotal:(settled[1]?.status==='fulfilled'?(settled[1].value.total||0):0)+(topic==='education'&&settled[2]?.status==='fulfilled'?(settled[2].value.total||0):0),page,hasMore:settled.some(x=>x.status==='fulfilled'&&!!x.value.next),partial:settled.some(x=>x.status==='rejected')})}catch{return fail(res,502,'The book catalog is temporarily unavailable. Please try again.')}});
 app.get('/api/books/:id',auth,async(req,res)=>{const id=decodeURIComponent(pathParam(req.params.id));const book=await catalogBookDetails(id);if(book){await persistBook(book).catch(()=>null);return res.json(book)}const found=await prisma.book.findUnique({where:{id}});return found?res.json({...found,formats:JSON.parse(found.formats),categories:JSON.parse(found.categories)}):fail(res,404,'This book has no free legal copy yet.')});
