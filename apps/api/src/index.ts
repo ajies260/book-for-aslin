@@ -5,7 +5,7 @@ import express,{Request,Response,NextFunction} from 'express';
 import {spawn,ChildProcessWithoutNullStreams} from 'node:child_process';import {createHash} from 'node:crypto';import {existsSync} from 'node:fs';import {createInterface} from 'node:readline';
 import {SessionData} from 'express-session';
 import {mkdir,mkdtemp,readFile,rm,stat,writeFile} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join,resolve} from 'node:path';import {Readable,Transform} from 'node:stream';import {pipeline} from 'node:stream/promises';
-import cors from 'cors';import helmet from 'helmet';import session from 'express-session';import rateLimit from 'express-rate-limit';import argon2 from 'argon2';import {z} from 'zod';import {PrismaClient} from '@prisma/client';import {fetchGutenbergEpub,gutenberg} from './adapters/gutendex';import {getWikisourceText,wikisource} from './adapters/wikisource';import {Book,Format} from './adapters/types';import {openLibrary} from './adapters/openlibrary';import {projectMadurai,getProjectMaduraiText} from './adapters/projectmadurai';import {openTextbooks} from './adapters/opentextbooks';import {BookFetchError,fetchBookBuffer,fetchBookText} from './book-fetch';
+import cors from 'cors';import helmet from 'helmet';import session from 'express-session';import rateLimit from 'express-rate-limit';import argon2 from 'argon2';import {z} from 'zod';import {PrismaClient} from '@prisma/client';import {fetchGutenbergEpub,gutenberg} from './adapters/gutendex';import {getWikisourceText,wikisource} from './adapters/wikisource';import {Book,Format} from './adapters/types';import {openLibrary} from './adapters/openlibrary';import {projectMadurai,getProjectMaduraiText} from './adapters/projectmadurai';import {openTextbooks} from './adapters/opentextbooks';import {BookFetchError,fetchBookBuffer,fetchBookText} from './book-fetch';import {loadShelves} from './shelves';
 dotenv.config({path:resolve(process.cwd(),'../../.env')});
 const app=express(), prisma=new PrismaClient(), PORT=Number(process.env.PORT||4000); const adapters=[gutenberg,wikisource,openLibrary,projectMadurai];
 const SESSION_TTL_MS=365*24*60*60*1000;
@@ -183,6 +183,10 @@ app.get('/api/health',async(_req,res)=>{
   const translation={googleConfigured:!!process.env.GOOGLE_TRANSLATE_API_KEY,libreConfigured:!!process.env.LIBRETRANSLATE_URL,localWorkerInstalled:existsSync(resolve(process.cwd(),'.venv/bin/python'))};
   res.status(200).json({ok:database,database,sources,translation,service:'for-you-books-api'});
  });
+app.get('/api/shelves',auth,async(_req,res)=>{
+ try{res.set('Cache-Control','no-store').json(await loadShelves(prisma))}
+ catch{return fail(res,502,'The book shelves are temporarily unavailable. Please try again.')}
+});
 app.post('/api/auth/login',async(req,res)=>{
  const parsed=z.object({email:z.string().email(),password:z.string().min(1)}).safeParse(req.body);
  if(!parsed.success)return fail(res,400,'Enter a valid email and password.');
